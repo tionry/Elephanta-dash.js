@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html ng-app="DashPlayer" lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <title>Dash JavaScript Player</title>
+    <meta name="description" content="" />
+    <link rel="icon" type="image/x-icon" href="http://dashif.org/wp-content/uploads/2014/12/dashif.ico" />
+    <meta name="viewport" content="width=device-width, height=device-height, user-scalable=no">
+
+    <link rel="stylesheet" href="app/lib/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="app/lib/bootstrap/css/bootstrap-theme.css">
+    <link rel="stylesheet" href="app/lib/bootstrap/css/bootstrap-glyphicons.css">
+    <link rel="stylesheet" href="app/css/main.css">
+    <link rel="stylesheet" href="../../contrib/akamai/controlbar/controlbar.css">
+
+    <!--Libs-->
+    <script src="app/lib/jquery/jquery-3.1.1.min.js"></script>
+
+
+    <script src="app/lib/angular/angular.min.js"></script>
+    <script src="app/lib/angular/angular-resource.min.js"></script>
+    <script src="app/lib/angular/angular-flot.js"></script>
+
+    <script src="app/lib/bootstrap/js/bootstrap.min.js"></script>
+
+    <script src="app/lib/flot/jquery.flot.min.js"></script>
+    <script src="app/lib/flot/jquery.flot.resize.min.js"></script>
+    <script src="app/lib/flot/jquery.flot.axislabels.js"></script>
+    <!-- App -->
+    <script src="../../dist/dash.all.debug.js"></script>
+    <script src="../../contrib/akamai/controlbar/ControlBar.js"></script>
+    <style type="text/css">
+        .input-lgg {
+            height: 60px;
+            padding: 10px;
+            font-size: 28px;
+            line-height: 2.0;
+            border-radius: 6px;
+        }
+    </style>
+    <script src="app/main.js"></script>
+</head>
+<body ng-controller="DashController" >
+
+    <!-- Mobile Stream Menu-->
+    <div class="modal fade" id="streamModal">
+        <div class="modal-dialog">
+            <div class="list-group modal-list">
+              <ul>
+                  <li ng-repeat="item in availableStreams" ng-class="{'sub':item.submenu}">
+                    <span ng-show="!item.submenu" ng-click="setStream(item)">{{item.name}}</span>
+                    <span ng-show="item.submenu">{{item.name}}</span>
+                    <ul ng-show="item.submenu">
+                        <li ng-repeat="subitem in item.submenu">
+                            <span ng-click="setStream(subitem)"
+                                  data-dismiss="modal">{{subitem.name}}</span>
+                        </li>
+                    </ul>
+                  </li>
+              </ul>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- TITLE BAR -->
+    <div class="container">
+        <div class="row title-header">
+
+            <div class="branding">
+              <a href="http://dashif.org/" target="_blank"><img class="image" src="app/img/if.png"/></a>
+              <span id="big-title">Reference Client</span>
+                <span ng-bind="version"></span>
+            </div>
+
+            <!-- Using iframe to solve pre-flight request issue from GIT-->
+            <div class="top-buttons">
+                <iframe id="star-button"
+                        src="http://ghbtns.com/github-btn.html?user=Dash-Industry-Forum&repo=dash.js&type=watch&count=true&size=large"
+                        height="30" width="150">
+                </iframe>
+                <iframe id="fork-button"
+                        src="http://ghbtns.com/github-btn.html?user=Dash-Industry-Forum&repo=dash.js&type=fork&count=true&size=large"
+                        height="30" width="150" >
+                </iframe>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="input-group">
+                <div id="desktop-streams" class="input-group-btn">
+                    <button type="button" class="btn btn-primary dropdown-toggle" data-toggle="dropdown">
+                        Stream <span class="caret"></span>
+                    </button>
+                    <ul class="dropdown-menu multi-level" role="menu" aria-labelledby="dropdownMenu">
+                        <li class="dropdown-submenu" ng-if="item.submenu" ng-repeat="item in availableStreams">
+                            <a tabindex="-1" href="#">{{item.name}}</a>
+                            <ul class="dropdown-menu">
+                                <li ng-repeat="subitem in item.submenu">
+                                    <a title="{{ subitem.moreInfo && 'See ' + subitem.moreInfo + ' for more information' || undefined }}"
+                                       ng-click="setStream(subitem)">{{subitem.name}}</a>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+
+                </div>
+                <div id="mobile-streams" class="input-group-btn">
+                    <button type="button" class="btn btn-primary" data-toggle="modal" href="#streamModal">
+                        Stream <span class="caret"></span>
+                    </button>
+                </div>
+                <input type="text" class="form-control" ng-model="selectedItem.url">
+                <span class="input-group-btn">
+                    <button class="btn btn-default" ng-click="toggleOptionsGutter(!optionsGutter)" ng-cloak>{{getOptionsButtonLabel()}}</button>
+                    <button class="btn btn-primary" type="button" ng-click="doLoad()">Load</button>
+                </span>
+            </div>
+        </div>
+
+        <!-- OPTIONS MENU-->
+        <div ng-cloak class="row options-wrapper" ng-class="{'options-show':optionsGutter, 'options-hide':!optionsGutter}">
+
+            <div class="options-item">
+                <div class="options-item-title">Playback</div>
+                <div class="options-item-body">
+                    <label class="topcoat-checkbox" data-toggle="tooltip" data-placement="right"
+                           title="Enables automatic startup of the media once the media is loaded">
+                        <input type="checkbox" ng-model="autoPlaySelected" ng-change="toggleAutoPlay()" ng-checked="autoPlaySelected">
+                        Auto-Play
+                    </label>
+                    <label class="topcoat-checkbox" data-toggle="tooltip" data-placement="right"
+                           title="Enables looping of the media once playback has completed">
+                        <input type="checkbox" id="loop-cb" ng-checked="loopSelected">
+                        Loop
+                    </label>
+                    <label class="topcoat-checkbox" data-toggle="tooltip" data-placement="right"
+                           title="Enables scheduling fragments whiled paused increasing the buffer.">
+                        <input type="checkbox" ng-model="scheduleWhilePausedSelected" ng-change="toggleScheduleWhilePaused()" ng-checked="scheduleWhilePausedSelected">
+                        Schedule While Paused
+                    </label>
+                    <label class="topcoat-checkbox" data-toggle="tooltip" data-placement="right"
+                           title="Enables local storage of player state (last bitrate, a/v or text track etc). This is then used when the next time media is played.">
+                        <input type="checkbox" id="localStorageCB" ng-model="localStorageSelected" ng-change="toggleLocalStorage()" ng-checked="localStorageSelected">
+                        Allow Local Storage
+                    </label>
+                    <label class="topcoat-checkbox" data-toggle="tooltip" data-placement="right"
+                           title="Enables faster ABR switching (time to render). Only when the new quality is higher than the current.">
+                        <input type="checkbox" id="fastSwitchCB" ng-model="fastSwitchSelected" ng-change="toggleFastSwitch()" ng-checked="fastSwitchSelected">
+                        Fast Switching ABR
+                    </label>
+                    <label class="topcoat-checkbox" data-toggle="tooltip" data-placement="right"
+                           title="BOLA is an ABR ruleset. When enabled, it will disable the default heuristics in Dash.js that depend strictly on average and real-time throughput measurements">
+                        <input type="checkbox" id="bolaCB" ng-model="bolaSelected" ng-change="toggleBufferOccupancyABR()" ng-checked="bolaSelected">
+                        Buffer Occupancy ABR
+                    </label>
+                    <label class="topcoat-checkbox" data-toggle="tooltip" data-placement="right" title="">
+                    <input type="checkbox" name = "optionsRadios" id="uorsCB" ng-model="uorsSelected" ng-change="toggleUorsABR()" ng-checked="uorsSelected">
+                        UORS ABR
+                    </label>
+                </div>
+            </div>
+
+            <div class="options-item">
+                <div class="options-item-title">UORS Settings</div>
+                <div class="options-item-body">
+                    
+					<label class="topcoat-checkbox" data-toggle="tooltip" data-placement="right" title="">
+                    <input type="checkbox" name = "optionsRadios" id="MetricBO" ng-model="MetricBO" disabled="disabled" ng-change="toggleMetricBO()" ng-checked="true">
+                        Buffer occupancy
+                    </label>
+                    <label class="topcoat-checkbox" data-toggle="tooltip" data-placement="right" title="">
+                    <input type="checkbox" name = "optionsRadios" id="MetricBS" ng-model="MetricBS" disabled="disabled" ng-change="toggleMetricBS()" ng-checked="true">
+                        Buffer switch
+                    </label>
+                    <label class="topcoat-checkbox" data-toggle="tooltip" data-placement="right" title="">
+                    <input type="checkbox" name = "optionsRadios" id="MetricRebuffer" ng-model="MetricRebuffer" disabled="disabled" ng-change="toggleMetricRB()" ng-checked="true">
+                        Rebuffer
+                    </label>
+                    <!--<button class="btn btn-primary license" type="button" ng-click="doLicenseFetch()">Pre-Fetch Licenses</button>-->
+                </div>
+            </div>            
+        </div>
+
+        <!--VIDEO PLAYER / CONTROLS -->
+        <div class="row">
+            <div class="dash-video-player col-md-9">
+                <div id="videoContainer">
+                    <video></video>
+                    <div id="video-caption"></div>
+                    <div id="videoController" class="video-controller unselectable" ng-cloak>
+                        <div id="playPauseBtn" class="btn-play-pause" data-toggle="tooltip" data-placement="bottom" title="Play/Pause">
+                            <span id="iconPlayPause" class="icon-play"></span>
+                        </div>
+                        <span id="videoTime" class="time-display">00:00:00</span>
+                        <div id="fullscreenBtn" class="btn-fullscreen control-icon-layout" data-toggle="tooltip" data-placement="bottom" title="Fullscreen">
+                            <span class="icon-fullscreen-enter"></span>
+                        </div>
+                        <div id="bitrateListBtn" class="btn-bitrate control-icon-layout" data-toggle="tooltip" data-placement="bottom" title="Bitrate List">
+                            <span class="icon-bitrate"></span>
+                        </div>
+                        <input type="range" id="volumebar" class="volumebar" value="1" min="0" max="1" step=".01"/>
+                        <div id="muteBtn" class="btn-mute control-icon-layout" data-toggle="tooltip" data-placement="bottom" title="Mute">
+                            <span id="iconMute" class="icon-mute-off"></span>
+                        </div>
+                        <div id="trackSwitchBtn" class="btn-track-switch control-icon-layout" data-toggle="tooltip" data-placement="bottom" title="Track List">
+                            <span class="icon-tracks"></span>
+                        </div>
+                        <div id="captionBtn" class="btn-caption control-icon-layout" data-toggle="tooltip" data-placement="bottom" title="Closed Caption / Subtitles">
+                            <span class="icon-caption"></span>
+                        </div>
+                        <span id="videoDuration" class="duration-display">00:00:00</span>
+                        <div class="seekContainer">
+                            <input type="range" id="seekbar" value="0" class="seekbar" min="0" step="0.01"/>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STATS TAB CONTENT -->
+            <div class="col-md-3 tabs-section">                
+                <div style="background-color: #fff;margin-top:10px;display:" class="uorsCons Constraints" id= "uorsCons">
+                	<div class="form-group " style="margin: 5px; font-size: 40px">
+                		<label class="control-label no-padding-right" for="form-group-upper">Constraints setting: </label>
+                	</div>                	
+                	<div class="form" style="margin: 15px;text-align: left;font-size: 40px">
+                		<div class="form-group form-group-lg">
+                			<label class="control-label no-padding-right" for="form-group-upper">Buffer switch: </label>
+	            		</div>
+	                	<div class="form-group">
+	                		<input class=" input-lgg" type="range"  ng-model="bs" ng-change="bsChanged()" min="1"  max="100" value="50"> {{ bs }}%
+	            		</div>
+                	</div>
+                	<div class="form" style="margin: 15px;text-align: left;font-size: 40px">
+                		<div class="form-group">
+                			<label class="control-label  no-padding-right" for="form-group-upper">Rebuffering: </label>
+	            		</div>
+	                	<div class="form-group">
+	                		<input class=" input-lgg" type="range"  ng-model="rb" ng-change="rbChanged()" min="1"  max="100" value="50">{{ rb }}%
+	            		</div>
+                	</div>
+                    <div class="form" style="margin: 15px;text-align: left;font-size: 40px">   
+                        <div class="form-group">
+                            <label class="control-label  no-padding-right" for="form-group-upper">Buffer occupancy: </label>
+                        </div>
+                        <div class="form-group">
+                            <input class=" input-lgg" type="range" ng-model="bo" ng-change="boChanged()" min=1  max=100 value="50"> {{ bo }}%
+                        </div>                              
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CHARTING -->
+
+       <div class="chart-panel">
+            <div class="chart-controls chart-axis">
+                <div class="btn-group">
+                    <button id="disable-chart-btn" class="btn btn-primary" ng-click="clearChartData()" ng-cloak>Clear</button>
+                    <button id="disable-chart-btn" class="btn btn-primary" ng-click="onChartEnableButtonClick()" ng-cloak>{{getChartButtonLabel()}}</button>
+                </div>
+                <div id="legend-wrapper" class="legend-row">
+                </div>
+            </div>
+            <div id="chart-wrapper">
+                <div id="chart-inventory">
+                    <flot dataset="chartData" options="chartOptions"></flot>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <!-- FOOTER -->
+    <div class="footer-area" ng-cloak>
+        <div class="container">
+            <div class="row">
+                <div class="col-md-12">
+                    <h3 class="footer-text">Contributors:</h3>
+                    <a ng-repeat="item in contributors" class="footer-text" href="{{item.link}}" target="_blank">
+                        <img ng-show="hasLogo(item)" ng-src="{{item.logo}}" alt="{{item.link}}"/>
+                        <span class="contributor" ng-show="!hasLogo(item)">{{item.name}}</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
